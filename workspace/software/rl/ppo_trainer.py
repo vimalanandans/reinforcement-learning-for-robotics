@@ -56,7 +56,7 @@ class PPOConfig:
     torch_deterministic: bool = True
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
-    """if toggled, cuda will be enabled by default"""
+    """if toggled, use an available GPU backend (CUDA or MPS)"""
     track: bool = False
     """if toggled, this experiment will be tracked with Weights and Biases"""
     wandb_project_name: str = "cleanRL"
@@ -628,8 +628,13 @@ def train(config: PPOConfig, envs=None, agent=None):
     torch.manual_seed(config.seed)
     torch.backends.cudnn.deterministic = config.torch_deterministic
 
-    # Assign a device for computation (CPU or GPU)
-    device = torch.device("cuda" if torch.cuda.is_available() and config.cuda else "cpu")
+    # Prefer CUDA or Apple MPS when GPU computation is enabled and available.
+    if config.cuda and torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif config.cuda and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
 
     # Check that the environment supports a continuous action space
     assert isinstance(envs.single_action_space, gym.spaces.Box), \
