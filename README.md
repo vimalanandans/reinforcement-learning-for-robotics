@@ -46,11 +46,13 @@ To use the M3 GPU for PPO network computation, run the training code natively on
 
 ### Native macOS MPS Training
 
-Install Miniforge or another Conda distribution for Apple Silicon, then create and activate the native environment:
+Install Python 3.12 for Apple Silicon, then create and activate a virtual environment from the repository root:
 
 ```sh
-conda env create -f environment-macos.yml
-conda activate rl-robotics-macos
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-macos.txt
 ```
 
 Confirm PyTorch can use the M3 GPU:
@@ -68,9 +70,10 @@ MUJOCO_RENDER=0 jupyter lab train_with_ppo.ipynb
 
 The training notebook resolves the model and source paths from the repository workspace. Set `PPOConfig.cuda=False` to force CPU computation. MuJoCo's native macOS viewer requires `mjpython`; disable notebook rendering as shown above when running Jupyter with the ordinary Python kernel.
 
-To monitor training logs, open a second terminal, activate the same Conda environment, and run this from the PPO notebook directory:
+To monitor training logs, open a second terminal, activate the virtual environment, and run this from the PPO notebook directory:
 
 ```sh
+source .venv/bin/activate
 tensorboard --logdir runs --port 6006
 ```
 

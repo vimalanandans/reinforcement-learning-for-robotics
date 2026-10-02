@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 import time
 
 import mujoco
@@ -8,7 +9,7 @@ import mujoco.viewer
 MJCF_PATH = Path(__file__).resolve().parents[2] / "mechanical/FreeCAD/bala2-fire/bala2-fire-simplified.xml"
 MOTOR_SPEED_STEP = 0.1
 MOTOR_SPEED_LIMIT = 1.0
-PRINT_EVERY = 50
+PRINT_EVERY = 250
 
 LEFT_MOTOR = "left_motor"
 RIGHT_MOTOR = "right_motor"
@@ -31,6 +32,18 @@ def clamp(value):
     return max(-MOTOR_SPEED_LIMIT, min(MOTOR_SPEED_LIMIT, value))
 
 
+def format_sensor(values):
+    return "[" + ", ".join(f"{value: .3f}" for value in values) + "]"
+
+
+def render_status(lines):
+    sys.stdout.write("\033[H")
+    for line in lines:
+        sys.stdout.write(f"\033[2K{line}\n")
+    sys.stdout.write("\033[J")
+    sys.stdout.flush()
+
+
 def key_callback(keycode):
     if keycode == KEY_BACKSPACE:
         ctrl["left"] = ctrl["right"] = 0.0
@@ -47,10 +60,6 @@ def main():
     data = mujoco.MjData(model)
     left_motor_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, LEFT_MOTOR)
     right_motor_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, RIGHT_MOTOR)
-    print(f"Model: {MJCF_PATH}")
-    print(f"Left motor ID: {left_motor_id}; right motor ID: {right_motor_id}")
-    print("Use Up/Down arrows to change motor speed; Backspace resets the motors.")
-
     mujoco.mj_resetData(model, data)
     steps = 0
     with mujoco.viewer.launch_passive(model, data, key_callback=key_callback) as viewer:
@@ -69,16 +78,20 @@ def main():
 
             steps += 1
             if steps % PRINT_EVERY == 0:
-                print(
-                    f"Accel: {data.sensor(IMU_ACCEL).data} | "
-                    f"Gyro: {data.sensor(IMU_GYRO).data} | "
-                    f"Orientation: {data.sensor(IMU_ORIENTATION).data} | "
-                    f"Wheels pos: {data.sensor(LEFT_WHEEL_POS).data}, "
-                    f"{data.sensor(RIGHT_WHEEL_POS).data} | "
-                    f"vel: {data.sensor(LEFT_WHEEL_VEL).data}, "
-                    f"{data.sensor(RIGHT_WHEEL_VEL).data} | "
-                    f"motors: {ctrl['left']:.1f}, {ctrl['right']:.1f}"
-                )
+                render_status([
+                    "MuJoCo: Manual motion test",
+                    f"Model: {MJCF_PATH}",
+                    f"Motor IDs: left {left_motor_id}, right {right_motor_id}",
+                    "Controls: Up/Down change both motors; Backspace stops them; close viewer to quit.",
+                    "Readout refresh: 2 Hz | sensor values rounded to 3 decimals",
+                    "",
+                    f"Accel:          {format_sensor(data.sensor(IMU_ACCEL).data)}",
+                    f"Gyro:           {format_sensor(data.sensor(IMU_GYRO).data)}",
+                    f"Orientation:    {format_sensor(data.sensor(IMU_ORIENTATION).data)}",
+                    f"Wheel position: L {format_sensor(data.sensor(LEFT_WHEEL_POS).data)}  R {format_sensor(data.sensor(RIGHT_WHEEL_POS).data)}",
+                    f"Wheel velocity: L {format_sensor(data.sensor(LEFT_WHEEL_VEL).data)}  R {format_sensor(data.sensor(RIGHT_WHEEL_VEL).data)}",
+                    f"Motor command:  L {ctrl['left']:+.1f}  R {ctrl['right']:+.1f}",
+                ])
 
             slack = model.opt.timestep - (time.time() - step_start)
             if slack > 0:

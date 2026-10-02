@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+import sys
 import time
 
 import mujoco
@@ -8,7 +9,7 @@ import mujoco.viewer
 
 MJCF_PATH = Path(__file__).resolve().parents[2] / "mechanical/FreeCAD/bala2-fire/bala2-fire-simplified.xml"
 MOTOR_SPEED_LIMIT = 1.0
-PRINT_EVERY = 50
+PRINT_EVERY = 250
 
 LEFT_MOTOR = "left_motor"
 RIGHT_MOTOR = "right_motor"
@@ -26,15 +27,19 @@ def clamp(value):
     return max(-MOTOR_SPEED_LIMIT, min(MOTOR_SPEED_LIMIT, value))
 
 
+def render_status(lines):
+    sys.stdout.write("\033[H")
+    for line in lines:
+        sys.stdout.write(f"\033[2K{line}\n")
+    sys.stdout.write("\033[J")
+    sys.stdout.flush()
+
+
 def main():
     model = mujoco.MjModel.from_xml_path(str(MJCF_PATH))
     data = mujoco.MjData(model)
     left_motor_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, LEFT_MOTOR)
     right_motor_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, RIGHT_MOTOR)
-    print(f"Model: {MJCF_PATH}")
-    print(f"Left motor ID: {left_motor_id}; right motor ID: {right_motor_id}")
-    print("Close the MuJoCo viewer to stop the simulation. Backspace resets the model.")
-
     mujoco.mj_resetData(model, data)
     mujoco.mj_forward(model, data)
     steps = 0
@@ -75,14 +80,19 @@ def main():
 
             steps += 1
             if steps % PRINT_EVERY == 0:
-                print(
-                    f"\raccel_pitch: {accel_pitch:.4f} rad | "
-                    f"pitch (filtered): {pitch:.4f} rad | "
-                    f"pitch_rate: {pitch_rate:.4f} rad/s | "
-                    f"motor: {motor_speed_target:.3f} | tipped: {tipped}   ",
-                    end="",
-                    flush=True,
-                )
+                render_status([
+                    "MuJoCo: PID balance controller",
+                    f"Model: {MJCF_PATH}",
+                    f"Motor IDs: left {left_motor_id}, right {right_motor_id}",
+                    "Close the viewer to quit; Backspace resets the simulation.",
+                    "Readout refresh: 2 Hz | angles and rates rounded to 3 decimals",
+                    "",
+                    f"Accel pitch:    {accel_pitch:+.3f} rad",
+                    f"Filtered pitch: {pitch:+.3f} rad",
+                    f"Pitch rate:     {pitch_rate:+.3f} rad/s",
+                    f"Motor command:  {motor_speed_target:+.3f}",
+                    f"Tipped:         {tipped}",
+                ])
 
             slack = model.opt.timestep - (time.time() - step_start)
             if slack > 0:
